@@ -44,10 +44,11 @@ let
     First    = GeocodeResults{0},
     Lat      = Number.ToText(First[latitude]),
     Lon      = Number.ToText(First[longitude]),
+    GetField = (r, f) => try Record.Field(r, f) otherwise null,
     LocLabel = Text.Combine(List.RemoveNulls({
-        Record.FieldOrDefault(First, "name"),
-        Record.FieldOrDefault(First, "admin1"),
-        Record.FieldOrDefault(First, "country")
+        GetField(First, "name"),
+        GetField(First, "admin1"),
+        GetField(First, "country")
     }), ", "),
 
     // --- Historical archive (Jan 1 → ~6 days ago) ---
