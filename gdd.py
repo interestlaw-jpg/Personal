@@ -38,10 +38,11 @@ def geocode(locale):
 
 
 def fetch_daily_temps(lat, lon, start, end):
-    """Return list of (date_str, tmax_f, tmin_f) covering [start, end].
+    """Return list of (date_str, tmax_f, tmin_f, source) covering [start, end].
 
-    Open-Meteo's archive API lags by ~5 days, so use the forecast API's
-    past_days parameter to fill recent gaps.
+    Open-Meteo's historical archive API lags by ~5 days, so the forecast
+    API's past_days parameter fills the recent gap. `source` is "archive"
+    or "forecast".
     """
     today = date.today()
     archive_end = min(end, today - timedelta(days=6))
@@ -60,7 +61,7 @@ def fetch_daily_temps(lat, lon, start, end):
         d = data.get("daily") or {}
         for day, hi, lo in zip(d.get("time", []), d.get("temperature_2m_max", []),
                                d.get("temperature_2m_min", [])):
-            days[day] = (hi, lo)
+            days[day] = (hi, lo, "archive")
 
     if end > archive_end:
         past_days = (today - start).days
@@ -79,21 +80,21 @@ def fetch_daily_temps(lat, lon, start, end):
                                d.get("temperature_2m_min", [])):
             day_obj = date.fromisoformat(day)
             if start <= day_obj <= end and day not in days:
-                days[day] = (hi, lo)
+                days[day] = (hi, lo, "forecast")
 
-    return sorted((day, hi, lo) for day, (hi, lo) in days.items())
+    return sorted((day, hi, lo, src) for day, (hi, lo, src) in days.items())
 
 
 def compute_gdd(daily):
     total = 0.0
     rows = []
-    for day, hi, lo in daily:
+    for day, hi, lo, src in daily:
         if hi is None or lo is None:
-            rows.append((day, hi, lo, None))
+            rows.append((day, hi, lo, None, src))
             continue
         gdd = max(((hi + lo) / 2.0) - BASE_TEMP_F, 0.0)
         total += gdd
-        rows.append((day, hi, lo, gdd))
+        rows.append((day, hi, lo, gdd, src))
     return total, rows
 
 
@@ -117,18 +118,27 @@ def main():
 
     total, rows = compute_gdd(daily)
 
+    forecast_rows = [r for r in rows if r[4] == "forecast"]
+
     if args.verbose:
-        print(f"{'date':<12}{'high°F':>8}{'low°F':>8}{'GDD':>8}")
-        for day, hi, lo, gdd in rows:
+        print(f"{'date':<12}{'high°F':>8}{'low°F':>8}{'GDD':>8}  source")
+        for day, hi, lo, gdd, src in rows:
             hi_s = f"{hi:.1f}" if hi is not None else "  n/a"
             lo_s = f"{lo:.1f}" if lo is not None else "  n/a"
             gdd_s = f"{gdd:.1f}" if gdd is not None else "  n/a"
-            print(f"{day:<12}{hi_s:>8}{lo_s:>8}{gdd_s:>8}")
+            print(f"{day:<12}{hi_s:>8}{lo_s:>8}{gdd_s:>8}  {src}")
         print()
 
     print(f"Location:        {label} ({lat:.4f}, {lon:.4f})")
     print(f"Period:          {rows[0][0]} through {rows[-1][0]} ({len(rows)} days)")
     print(f"Growing Degree Days (base 50°F): {total:.1f}")
+    if forecast_rows:
+        first = forecast_rows[0][0]
+        last = forecast_rows[-1][0]
+        print(f"Note: the most recent {len(forecast_rows)} day(s) ({first} through "
+              f"{last}) come from the forecast API, not the historical archive, "
+              f"because Open-Meteo's archive lags ~5 days. Re-run later for "
+              f"finalized values.")
 
 
 if __name__ == "__main__":
