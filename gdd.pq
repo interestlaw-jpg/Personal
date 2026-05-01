@@ -34,14 +34,29 @@ let
         Text.PadStart(Number.ToText(Date.Day(d)), 2, "0"),
 
     // --- Geocoding ---
-    GeocodeRaw = Json.Document(Web.Contents(
-        "https://geocoding-api.open-meteo.com",
-        [RelativePath = "/v1/search",
-         Headers = [#"Accept-Encoding" = "identity"],
-         Query = [name = Locale, count = "1", format = "json"]]
-    )),
-    GeocodeResults = GeocodeRaw[results],
-    First    = GeocodeResults{0},
+    Geocode = (name as text) =>
+        let
+            Raw = Json.Document(Web.Contents(
+                "https://geocoding-api.open-meteo.com",
+                [RelativePath = "/v1/search",
+                 Headers = [#"Accept-Encoding" = "identity"],
+                 Query = [name = name, count = "1", format = "json"]]
+            ))
+        in
+            try Record.Field(Raw, "results") otherwise {},
+
+    PrimaryHits  = Geocode(Locale),
+    FallbackName = Text.Trim(Text.BeforeDelimiter(Locale, ",")),
+    FallbackHits =
+        if List.Count(PrimaryHits) = 0 and FallbackName <> "" and FallbackName <> Locale
+        then Geocode(FallbackName)
+        else PrimaryHits,
+    Hits = if List.Count(PrimaryHits) > 0 then PrimaryHits else FallbackHits,
+
+    First =
+        if List.Count(Hits) = 0
+        then error "Open-Meteo geocoder found no match for """ & Locale & """. Try a simpler form, e.g. just the city name without state/country."
+        else Hits{0},
     Lat      = Number.ToText(First[latitude]),
     Lon      = Number.ToText(First[longitude]),
     GetField = (r, f) => try Record.Field(r, f) otherwise null,
