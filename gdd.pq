@@ -37,6 +37,7 @@ let
     GeocodeRaw = Json.Document(Web.Contents(
         "https://geocoding-api.open-meteo.com",
         [RelativePath = "/v1/search",
+         Headers = [#"Accept-Encoding" = "identity"],
          Query = [name = Locale, count = "1", format = "json"]]
     )),
     GeocodeResults = GeocodeRaw[results],
@@ -56,6 +57,7 @@ let
                 Raw = Json.Document(Web.Contents(
                     "https://archive-api.open-meteo.com",
                     [RelativePath = "/v1/archive",
+                     Headers = [#"Accept-Encoding" = "identity"],
                      Query = [
                         latitude         = Lat,
                         longitude        = Lon,
@@ -83,6 +85,7 @@ let
                 Raw = Json.Document(Web.Contents(
                     "https://api.open-meteo.com",
                     [RelativePath = "/v1/forecast",
+                     Headers = [#"Accept-Encoding" = "identity"],
                      Query = [
                         latitude         = Lat,
                         longitude        = Lon,
